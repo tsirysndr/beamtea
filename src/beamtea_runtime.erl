@@ -1,6 +1,6 @@
 %%% @doc The event loop that owns the terminal and drives an Elm program.
 %%%
-%%% This process is the one that calls {@link prim_tty:init/1}, so it must be
+%%% This process is the one that initialises `prim_tty', so it must be
 %%% registered (prim_tty derives its reader/writer process names from the
 %%% owner's registered name). {@link beamtea:start/3} takes care of that.
 %%%
