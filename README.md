@@ -1,5 +1,7 @@
 # beamtea 🍵
 
+[![CI](https://github.com/tsirysndr/beamtea/actions/workflows/ci.yml/badge.svg)](https://github.com/tsirysndr/beamtea/actions/workflows/ci.yml)
+
 A delightful terminal UI framework for the BEAM — **[Bubble Tea](https://github.com/charmbracelet/bubbletea) for Erlang.**
 
 beamtea brings [The Elm Architecture](https://guide.elm-lang.org/architecture/) to the terminal, built directly on OTP's `prim_tty`. You write three pure functions — `init`, `update`, `view` — and beamtea handles raw input, UTF-8 decoding, the alternate screen, resizing, timers, and a clean exit. It ships with **bubbles**: a set of high-level, reusable components inspired by [charmbracelet/bubbles](https://github.com/charmbracelet/bubbles), styled with an electric, Charm-inspired colour palette.
@@ -44,7 +46,7 @@ Everything below is implemented and covered by tests (103 EUnit cases) plus PTY 
 | Clean `q` / `Ctrl-C` exit | ✓ |
 | Linux and macOS tests | ✓ |
 
-Requires **Erlang/OTP 26+** (developed against OTP 29) and `rebar3`.
+Requires **Erlang/OTP 27+** (developed against OTP 29) and `rebar3`. CI runs the suite on Ubuntu (OTP 27 & 28) and macOS on every push to `main` and every pull request.
 
 ---
 
@@ -54,13 +56,13 @@ Add beamtea as a rebar3 dependency:
 
 ```erlang
 %% rebar.config
-{deps, [{beamtea, {git, "https://github.com/tsiry-sndr/beamtea.git", {tag, "0.1.0"}}}]}.
+{deps, [{beamtea, {git, "https://github.com/tsirysndr/beamtea.git", {tag, "0.1.0"}}}]}.
 ```
 
 Or clone and build locally:
 
 ```console
-git clone https://github.com/tsiry-sndr/beamtea.git
+git clone https://github.com/tsirysndr/beamtea.git
 cd beamtea
 rebar3 compile
 rebar3 eunit
