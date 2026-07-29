@@ -1,6 +1,10 @@
 # beamtea 🍵
 
 [![CI](https://github.com/tsirysndr/beamtea/actions/workflows/ci.yml/badge.svg)](https://github.com/tsirysndr/beamtea/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/beamtea.svg?logo=erlang&logoColor=white)](https://hex.pm/packages/beamtea)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/beamtea/)
+![Erlang/OTP](https://img.shields.io/badge/Erlang%2FOTP-28%2B-A90533?logo=erlang&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
 A delightful terminal UI framework for the BEAM — **[Bubble Tea](https://github.com/charmbracelet/bubbletea) for Erlang.**
 
@@ -46,7 +50,7 @@ Everything below is implemented and covered by tests (103 EUnit cases) plus PTY 
 | Clean `q` / `Ctrl-C` exit | ✓ |
 | Linux and macOS tests | ✓ |
 
-Requires **Erlang/OTP 27+** (developed against OTP 29) and `rebar3`. CI runs the suite on Ubuntu (OTP 27 & 28) and macOS on every push to `main` and every pull request.
+Requires **Erlang/OTP 28+** (developed against OTP 29) and `rebar3`. CI runs the suite on Ubuntu (OTP 28 & 29) and macOS on every push to `main` and every pull request.
 
 ---
 
