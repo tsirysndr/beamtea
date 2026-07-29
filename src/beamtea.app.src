@@ -1,5 +1,5 @@
 {application, beamtea, [
-    {description, "A delightful terminal UI framework for the BEAM (Elm architecture, built on prim_tty)"},
+    {description, "A delightful terminal UI framework for the BEAM — Bubble Tea for Erlang. The Elm Architecture on prim_tty, with reusable bubbles (spinner, textinput, table, and more)."},
     {vsn, "0.1.0"},
     {registered, [beamtea_runtime]},
     {applications, [
@@ -9,5 +9,20 @@
     {env, []},
     {modules, []},
     {licenses, ["MIT"]},
-    {links, []}
+    {links, [
+        {"GitHub", "https://github.com/tsirysndr/beamtea"}
+    ]},
+    {build_tools, ["rebar3"]},
+    {pkg_name, "beamtea"},
+    {files, [
+        "src",
+        "include",
+        "examples",
+        "bin",
+        "rebar.config",
+        "rebar.lock",
+        "README.md",
+        "LICENSE",
+        "Makefile"
+    ]}
 ]}.
