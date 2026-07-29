@@ -1,8 +1,7 @@
 %%% Viewport demo — scroll through a long document. Uses the beamtea_viewport
 %%% bubble plus a beamtea_progress scroll indicator.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       viewport_demo:main().
+%%% Run:  ./bin/beamtea-run viewport_demo
 -module(viewport_demo).
 -behaviour(beamtea).
 

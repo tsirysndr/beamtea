@@ -1,8 +1,7 @@
 %%% Text area demo — a multi-line editor with a live line/char count. Uses the
 %%% beamtea_textarea bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       textarea_demo:main().
+%%% Run:  ./bin/beamtea-run textarea_demo
 -module(textarea_demo).
 -behaviour(beamtea).
 

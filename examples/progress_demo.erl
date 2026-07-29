@@ -1,8 +1,7 @@
 %%% Progress demo — a self-filling gradient progress bar. Combines the
 %%% beamtea_progress bubble with a beamtea:every/2 timer.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       progress_demo:main().
+%%% Run:  ./bin/beamtea-run progress_demo
 -module(progress_demo).
 -behaviour(beamtea).
 

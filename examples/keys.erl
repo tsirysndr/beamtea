@@ -1,8 +1,7 @@
 %%% Key inspector — shows how raw input decodes into key events. Great for
 %%% seeing arrows, UTF-8, and Ctrl-combos in action.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       keys:main().
+%%% Run:  ./bin/beamtea-run keys
 -module(keys).
 -behaviour(beamtea).
 

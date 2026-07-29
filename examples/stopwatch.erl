@@ -1,7 +1,6 @@
 %%% Stopwatch — demonstrates commands & timers via beamtea:every/2.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       stopwatch:main().
+%%% Run:  ./bin/beamtea-run stopwatch
 -module(stopwatch).
 -behaviour(beamtea).
 

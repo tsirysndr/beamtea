@@ -1,7 +1,6 @@
 %%% Timer demo — a 10-second countdown. Uses the beamtea_timer bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       timer_demo:main().
+%%% Run:  ./bin/beamtea-run timer_demo
 -module(timer_demo).
 -behaviour(beamtea).
 

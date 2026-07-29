@@ -1,7 +1,6 @@
 %%% Table demo — a selectable data table. Uses the beamtea_table bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       table_demo:main().
+%%% Run:  ./bin/beamtea-run table_demo
 -module(table_demo).
 -behaviour(beamtea).
 

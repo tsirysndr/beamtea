@@ -1,7 +1,6 @@
 %%% Counter — the "hello world" of beamtea. No bubbles, just the core loop.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       counter:main().
+%%% Run:  ./bin/beamtea-run counter
 -module(counter).
 -behaviour(beamtea).
 

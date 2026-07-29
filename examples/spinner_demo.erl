@@ -1,8 +1,7 @@
 %%% Spinner demo — cycle through every built-in spinner style. Uses the
 %%% beamtea_spinner bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       spinner_demo:main().
+%%% Run:  ./bin/beamtea-run spinner_demo
 -module(spinner_demo).
 -behaviour(beamtea).
 

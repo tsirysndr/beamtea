@@ -1,7 +1,6 @@
 %%% List demo — a scrollable, selectable menu. Uses the beamtea_list bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       list_demo:main().
+%%% Run:  ./bin/beamtea-run list_demo
 -module(list_demo).
 -behaviour(beamtea).
 

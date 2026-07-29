@@ -1,8 +1,7 @@
 %%% Help & paginator demo — declares key bindings once and renders both the
 %%% controls (via beamtea_help) and a paged list (via beamtea_paginator).
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       help_demo:main().
+%%% Run:  ./bin/beamtea-run help_demo
 -module(help_demo).
 -behaviour(beamtea).
 

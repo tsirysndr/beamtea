@@ -1,8 +1,7 @@
 %%% Text input demo — a focused text field with a live greeting. Uses the
 %%% beamtea_textinput bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       textinput_demo:main().
+%%% Run:  ./bin/beamtea-run textinput_demo
 -module(textinput_demo).
 -behaviour(beamtea).
 

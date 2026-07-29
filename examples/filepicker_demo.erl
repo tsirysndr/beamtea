@@ -1,8 +1,7 @@
 %%% File picker demo — browse the filesystem and select a file. Uses the
 %%% beamtea_filepicker bubble.
 %%%
-%%% Run:  rebar3 as examples shell
-%%%       filepicker_demo:main().
+%%% Run:  ./bin/beamtea-run filepicker_demo
 -module(filepicker_demo).
 -behaviour(beamtea).
 
