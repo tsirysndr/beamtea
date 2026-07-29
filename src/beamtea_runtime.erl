@@ -27,6 +27,7 @@
     size         :: {pos_integer(), pos_integer()},  %% {Cols, Rows}
     alt          :: boolean(),
     catch_ctrl_c :: boolean(),
+    layout       :: top_left | center | fill | {frame, map()} | {place, map()},
     buf = <<>>   :: binary()           %% leftover, un-parsed input bytes
 }).
 
@@ -43,13 +44,18 @@ run(#beamtea_prog{} = Prog, Flags, Opts) ->
     enter_screen(TTY0, Alt),
     try
         Size = window_size(TTY0),
+        put(beamtea_size, Size),   %% make it readable from init/view via beamtea:window_size/0
         {InitModel, Cmd} = (Prog#beamtea_prog.init)(Flags),
         St0 = #st{tty = TTY0, prog = Prog, model = InitModel, opts = Opts,
-                  size = Size, alt = Alt, catch_ctrl_c = CatchC},
+                  size = Size, alt = Alt, catch_ctrl_c = CatchC,
+                  layout = maps:get(layout, Opts, top_left)},
         St1 = perform(beamtea_cmd:to_effects(Cmd), St0),
-        render(St1),
+        %% Hand the program its initial size up-front (as a resize) so it can
+        %% lay out to the full terminal on the very first frame.
+        St2 = deliver({resize, Size}, St1),
+        render(St2),
         ok = prim_tty:read(TTY0),
-        loop(St1)
+        loop(St2)
     after
         leave_screen(TTY0, Alt)
     end.
@@ -154,9 +160,20 @@ run_effect({task, Fun}, St) ->
 %%% Terminal I/O
 %%% ===================================================================
 
-render(#st{tty = TTY, prog = Prog, model = Model}) ->
-    Frame = (Prog#beamtea_prog.view)(Model),
+render(#st{tty = TTY, prog = Prog, model = Model, size = Size, layout = Layout}) ->
+    put(beamtea_size, Size),   %% current size, readable from view via beamtea:window_size/0
+    Frame0 = (Prog#beamtea_prog.view)(Model),
+    Frame = apply_layout(Layout, Frame0, Size),
     ok = prim_tty:write(TTY, beamtea_render:to_frame(Frame)).
+
+%% Position the view within the terminal. `top_left' (the default) renders as
+%% written; `center' and `{place, Opts}' use the current size, so they track
+%% terminal resizes automatically.
+apply_layout(top_left, Frame, _Size) -> Frame;
+apply_layout(center, Frame, Size) -> beamtea_layout:center(Frame, Size);
+apply_layout(fill, Frame, Size) -> beamtea_layout:frame(Frame, Size, #{});
+apply_layout({frame, Opts}, Frame, Size) -> beamtea_layout:frame(Frame, Size, Opts);
+apply_layout({place, Opts}, Frame, Size) -> beamtea_layout:place(Frame, Size, Opts).
 
 window_size(TTY) ->
     case prim_tty:window_size(TTY) of

@@ -31,6 +31,9 @@
 -export([none/0, quit/0, batch/1, sequence/1, msg/1,
          tick/2, every/2, task/1]).
 
+%% Terminal info
+-export([window_size/0]).
+
 %% Internal (used by the runtime)
 -export([normalize/1]).
 
@@ -100,6 +103,10 @@ start(Program, Flags) -> start(Program, Flags, #{}).
 %%       screen buffer</li>
 %%   <li>`catch_ctrl_c => boolean()' (default `true') — quit on Ctrl-C
 %%       instead of passing it to `update/2'</li>
+%%   <li>`layout => top_left | center | {place, Opts}' (default `top_left')
+%%       — position the whole view within the terminal, so a small view can
+%%       fill/centre the screen. See {@link beamtea_layout}. `center' and
+%%       `{place, ...}' re-flow automatically on resize.</li>
 %% </ul>
 -spec start(program(), term(), map()) -> {ok, model()} | {error, term()}.
 start(Program, Flags, Opts) ->
@@ -163,6 +170,18 @@ every(Ms, Msg) -> {every, Ms, Msg}.
 %% @doc Run `Fun' asynchronously; its return value is delivered to `update/2'.
 -spec task(fun(() -> msg())) -> cmd().
 task(Fun) -> {task, Fun}.
+
+%% @doc The current terminal size `{Cols, Rows}'. Callable from `init/1' and
+%% `view/1' (they run in the runtime process), so a view can size its content
+%% to the terminal without threading the size through the model. The size also
+%% arrives in `update/2' as `{resize, {Cols, Rows}}' if you prefer to store it.
+%% Returns `{80, 24}' if called outside a running program.
+-spec window_size() -> {pos_integer(), pos_integer()}.
+window_size() ->
+    case get(beamtea_size) of
+        {Cols, Rows} when is_integer(Cols), is_integer(Rows) -> {Cols, Rows};
+        _ -> {80, 24}
+    end.
 
 %%% ===================================================================
 %%% Internal

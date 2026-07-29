@@ -32,7 +32,7 @@ view(N) ->
 
 ---
 
-## Status — v0.1.0
+## Status — v0.1.1
 
 Everything below is implemented and covered by tests (103 EUnit cases) plus PTY integration checks on macOS and Linux:
 
@@ -60,7 +60,7 @@ Add beamtea as a rebar3 dependency:
 
 ```erlang
 %% rebar.config
-{deps, [{beamtea, {git, "https://github.com/tsirysndr/beamtea.git", {tag, "0.1.0"}}}]}.
+{deps, [{beamtea, {git, "https://github.com/tsirysndr/beamtea.git", {tag, "0.1.1"}}}]}.
 ```
 
 Or clone and build locally:
@@ -145,6 +145,30 @@ Return a command from `init/2` or `update/2` to ask the runtime to do something:
 
 - `alt_screen => boolean()` (default `true`) — use the alternate screen buffer
 - `catch_ctrl_c => boolean()` (default `true`) — quit on `Ctrl-C` instead of passing it to `update/2`
+- `layout => top_left | center | {place, Opts}` (default `top_left`) — position the whole view within the terminal (see **Filling the terminal** below)
+
+### Filling the terminal
+
+beamtea renders exactly what `view/1` returns, anchored top-left — so a small view sits in the corner and the rest of the screen is blank. To use the whole terminal you have two options:
+
+**1. Let the runtime place your view** — the simplest way to centre or corner-pin a view. The runtime knows the terminal size and re-flows on resize:
+
+```erlang
+beamtea:start(?MODULE, undefined, #{layout => center}).
+%% or: #{layout => {place, #{halign => center, valign => bottom}}}
+```
+
+(All the examples use `#{layout => center}` — that's why they fill the screen.)
+
+**2. Lay out yourself** — for real full-screen UIs (headers, footers, sidebars). Your `update/2` receives the terminal size as `{resize, {Cols, Rows}}` — **including once at startup**, before the first frame — so store it and build your `view/1` to those dimensions. `beamtea_layout` (`place/3`, `center/2`, `top_center/2`) and `beamtea_util:visible_width/1` (ANSI-aware) help you position and size content.
+
+```erlang
+init(_) -> {#st{w = 80, h = 24}, beamtea:none()}.
+update({resize, {W, H}}, St) -> {St#st{w = W, h = H}, beamtea:none()};
+%% ...
+view(#st{w = W, h = H} = St) ->
+    beamtea_layout:center(my_panel(St), {W, H}).
+```
 
 ---
 

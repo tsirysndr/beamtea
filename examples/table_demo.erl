@@ -9,6 +9,7 @@
 main() -> beamtea:start(?MODULE).
 
 init(_Flags) ->
+    {_, H} = beamtea:window_size(),
     Cols = [{<<"Framework">>, 14}, {<<"Language">>, 10}, {<<"Stars">>, 7}],
     Rows = [[<<"beamtea">>,     <<"Erlang">>, <<"new!">>],
             [<<"Bubble Tea">>,  <<"Go">>,     <<"27k">>],
@@ -18,7 +19,9 @@ init(_Flags) ->
             [<<"Ink">>,         <<"JS">>,     <<"23k">>],
             [<<"tview">>,       <<"Go">>,     <<"10k">>],
             [<<"notcurses">>,   <<"C">>,      <<"3k">>]],
-    T = beamtea_table:new(Cols, Rows, #{height => 5}),
+    %% Taller table: scale visible rows to the terminal height.
+    VisibleRows = max(8, H - 9),
+    T = beamtea_table:new(Cols, Rows, #{height => VisibleRows}),
     {T, beamtea:none()}.
 
 update({key, {char, $q}}, T) -> {T, beamtea:quit()};

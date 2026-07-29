@@ -2,23 +2,30 @@
 %%% charmbracelet/bubbles.
 %%%
 %%% Browse directories with the arrows, descend with Enter/→, ascend with
-%%% ←/Backspace. Selecting a file records it; read it back with
-%%% {@link did_select_file/1}.
+%%% ←/Backspace. Each row shows a Unix-style permissions column, a size column
+%%% and the name — directories in purple, files in gray. Selecting a file
+%%% records it; read it back with {@link did_select_file/1}.
 -module(beamtea_filepicker).
+
+-include_lib("kernel/include/file.hrl").
 
 -export([new/0, new/1, update/2, view/1,
          path/1, did_select_file/1, highlighted/1]).
 
 -export_type([model/0]).
 
+%% Each entry: {Name, IsDir, SizeBytes, PermsString}.
+-type entry() :: {binary(), boolean(), non_neg_integer(), binary()}.
+
 -opaque model() :: #{type := filepicker,
                      path := file:filename(),
-                     entries := [{binary(), boolean()}],  %% {Name, IsDir}
+                     entries := [entry()],
                      cursor := non_neg_integer(),
                      offset := non_neg_integer(),
                      height := pos_integer(),
                      selected := none | file:filename(),
                      dir_color := 0..255,
+                     file_color := 0..255,
                      select_color := 0..255}.
 
 %% @equiv new(#{})
@@ -26,7 +33,8 @@
 new() -> new(#{}).
 
 %% @doc Options: `path' (starting directory, default cwd), `height'
-%% (visible rows, default 12), colours.
+%% (visible rows, default 12), `dir_color' (default purple), `file_color'
+%% (default gray), `select_color'.
 -spec new(map()) -> model().
 new(Opts) ->
     Path = maps:get(path, Opts, cwd()),
@@ -37,7 +45,8 @@ new(Opts) ->
              offset => 0,
              height => maps:get(height, Opts, 12),
              selected => none,
-             dir_color => maps:get(dir_color, Opts, beamtea_color:c(sky)),
+             dir_color => maps:get(dir_color, Opts, beamtea_color:c(purple)),
+             file_color => maps:get(file_color, Opts, beamtea_color:c(gray)),
              select_color => maps:get(select_color, Opts, beamtea_color:c(pink))},
     load(Base).
 
@@ -66,7 +75,7 @@ update(_Msg, M) ->
 %% Descend into a directory or select a file.
 open(#{entries := []} = M) -> M;
 open(#{entries := Es, cursor := Cur, path := Path} = M) ->
-    {Name, IsDir} = lists:nth(Cur + 1, Es),
+    {Name, IsDir, _Size, _Perms} = lists:nth(Cur + 1, Es),
     Full = filename:join(Path, unicode:characters_to_list(Name)),
     case IsDir of
         true  -> load(M#{path := Full, cursor := 0, offset := 0});
@@ -85,18 +94,26 @@ load(#{path := Path} = M) ->
     Entries =
         case file:list_dir(Path) of
             {ok, Names} ->
-                Tagged = [{list_to_binary(N),
-                           filelib:is_dir(filename:join(Path, N))}
-                          || N <- Names],
+                Tagged = [entry_info(Path, N) || N <- Names],
                 lists:sort(fun sort_entries/2, Tagged);
             {error, _} ->
                 []
         end,
     M#{entries := Entries}.
 
-sort_entries({NA, true}, {NB, false}) when NA =/= NB -> true;
-sort_entries({_NA, false}, {_NB, true}) -> false;
-sort_entries({NA, _}, {NB, _}) -> NA =< NB.
+%% Read type, size and permissions for one directory entry.
+entry_info(Path, Name) ->
+    Full = filename:join(Path, Name),
+    case file:read_file_info(Full, [{time, posix}]) of
+        {ok, #file_info{type = Type, size = Size, mode = Mode}} ->
+            {list_to_binary(Name), Type =:= directory, Size, perms(Type, Mode)};
+        {error, _} ->
+            {list_to_binary(Name), filelib:is_dir(Full), 0, <<"??????????">>}
+    end.
+
+sort_entries({_, true, _, _}, {_, false, _, _}) -> true;
+sort_entries({_, false, _, _}, {_, true, _, _}) -> false;
+sort_entries({NA, _, _, _}, {NB, _, _, _}) -> NA =< NB.
 
 scroll(#{cursor := Cur, offset := Off, height := H} = M) ->
     Off1 = if
@@ -109,29 +126,34 @@ scroll(#{cursor := Cur, offset := Off, height := H} = M) ->
 %% @doc Render the current path and the visible window of entries.
 -spec view(model()) -> iodata().
 view(#{path := Path, entries := Es, cursor := Cur, offset := Off, height := H,
-       dir_color := DC, select_color := SC}) ->
+       dir_color := DC, file_color := FC, select_color := SC}) ->
     Header = beamtea_term:bold(beamtea_color:fg(cyan, list_to_binary(Path))),
     Body =
         case Es of
             [] -> [<<"\n">>, beamtea_term:faint(<<"  (empty)">>)];
             _ ->
                 Window = lists:sublist(lists:nthtail(min(Off, length(Es)), Es), H),
-                Rows = [render_entry(E, Off + Idx - 1 =:= Cur, DC, SC)
+                Rows = [render_entry(E, Off + Idx - 1 =:= Cur, DC, FC, SC)
                         || {Idx, E} <- enumerate(Window)],
                 [<<"\n">>, lists:join(<<"\n">>, Rows)]
         end,
     [Header, Body].
 
-render_entry({Name, IsDir}, Selected, DC, SC) ->
-    Glyph = case IsDir of true -> <<"📁 "/utf8>>; false -> <<"📄 "/utf8>> end,
-    Label = case IsDir of
-                true -> beamtea_term:paint([38, 5, DC], Name);
-                false -> Name
-            end,
-    case Selected of
-        true  -> beamtea_term:paint([38, 5, SC], [<<"> ">>, Glyph, Name]);
-        false -> [<<"  ">>, Glyph, Label]
-    end.
+%% A row: cursor marker, permissions, right-aligned size, then the coloured
+%% name (purple for dirs, gray for files; bold + pink marker when selected).
+render_entry({Name, IsDir, Size, Perms}, Selected, DC, FC, SC) ->
+    NameColor = case IsDir of true -> DC; false -> FC end,
+    PermsCol = beamtea_term:faint(Perms),
+    SizeCol = beamtea_term:faint(pad_left(human_size(IsDir, Size), 7)),
+    {Marker, NameCol} =
+        case Selected of
+            true ->
+                {beamtea_term:paint([38, 5, SC], <<"> ">>),
+                 beamtea_term:bold(beamtea_term:paint([38, 5, NameColor], Name))};
+            false ->
+                {<<"  ">>, beamtea_term:paint([38, 5, NameColor], Name)}
+        end,
+    [Marker, PermsCol, <<"  ">>, SizeCol, <<"  ">>, NameCol].
 
 %%% --- accessors --------------------------------------------------------
 
@@ -145,7 +167,9 @@ did_select_file(#{selected := Sel}) -> Sel.
 %% @doc The `{Name, IsDir}' currently under the cursor, or `none'.
 -spec highlighted(model()) -> {binary(), boolean()} | none.
 highlighted(#{entries := []}) -> none;
-highlighted(#{entries := Es, cursor := Cur}) -> lists:nth(Cur + 1, Es).
+highlighted(#{entries := Es, cursor := Cur}) ->
+    {Name, IsDir, _Size, _Perms} = lists:nth(Cur + 1, Es),
+    {Name, IsDir}.
 
 %%% --- helpers ----------------------------------------------------------
 
@@ -156,3 +180,40 @@ cwd() ->
     end.
 
 enumerate(List) -> lists:zip(lists:seq(1, length(List)), List).
+
+%% A Unix-style permission string, e.g. "drwxr-xr-x".
+perms(Type, Mode) ->
+    Bits = [{8#400, $r}, {8#200, $w}, {8#100, $x},
+            {8#040, $r}, {8#020, $w}, {8#010, $x},
+            {8#004, $r}, {8#002, $w}, {8#001, $x}],
+    Chars = [case Mode band B of 0 -> $-; _ -> C end || {B, C} <- Bits],
+    list_to_binary([type_char(Type) | Chars]).
+
+type_char(directory) -> $d;
+type_char(symlink)   -> $l;
+type_char(device)    -> $c;
+type_char(_)         -> $-.
+
+%% Human-readable size; directories show "-".
+human_size(true, _Size) -> <<"-">>;
+human_size(false, Size) ->
+    if
+        Size < 1024        -> <<(integer_to_binary(Size))/binary, "B">>;
+        Size < 1024 * 1024 -> unit(Size / 1024, "K");
+        Size < 1024 * 1024 * 1024 -> unit(Size / (1024 * 1024), "M");
+        true -> unit(Size / (1024 * 1024 * 1024), "G")
+    end.
+
+unit(V, Suffix) ->
+    %% one decimal place, e.g. "1.2K"
+    Whole = trunc(V),
+    Tenth = trunc((V - Whole) * 10),
+    iolist_to_binary([integer_to_binary(Whole), $., integer_to_binary(Tenth), Suffix]).
+
+pad_left(Bin0, Width) ->
+    Bin = iolist_to_binary(Bin0),
+    Len = byte_size(Bin),
+    case Width > Len of
+        true -> <<(binary:copy(<<" ">>, Width - Len))/binary, Bin/binary>>;
+        false -> Bin
+    end.

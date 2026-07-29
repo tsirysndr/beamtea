@@ -12,23 +12,30 @@
 
 -export([new/0, new/1, set/2, incr/2, percent/1, view/1]).
 
--export_type([model/0]).
+-export_type([model/0, rgb/0]).
+
+-type rgb() :: {0..255, 0..255, 0..255}.
 
 -opaque model() :: #{type := progress,
                      percent := float(),
                      width := pos_integer(),
                      full := binary(),
                      empty := binary(),
-                     gradient := {0..255, 0..255},
+                     gradient := {rgb(), rgb()},
                      empty_color := 0..255,
                      show_percent := boolean()}.
+
+%% Charm-style default gradient: purple (#7D56F4) -> pink (#EE6FF8).
+-define(GRAD_FROM, {16#7D, 16#56, 16#F4}).
+-define(GRAD_TO,   {16#EE, 16#6F, 16#F8}).
 
 %% @equiv new(#{})
 -spec new() -> model().
 new() -> new(#{}).
 
 %% @doc Options: `width' (default 40), `full'/`empty' glyphs, `gradient'
-%% ({FromColor, ToColor} xterm-256 indices), `empty_color', `show_percent'.
+%% (`{FromRGB, ToRGB}', each an `{R,G,B}' triple — interpolated in 24-bit
+%% truecolor), `empty_color' (xterm-256 index), `show_percent'.
 -spec new(map()) -> model().
 new(Opts) ->
     #{type => progress,
@@ -36,8 +43,7 @@ new(Opts) ->
       width => maps:get(width, Opts, 40),
       full => maps:get(full, Opts, <<"█"/utf8>>),
       empty => maps:get(empty, Opts, <<"░"/utf8>>),
-      gradient => maps:get(gradient, Opts,
-                           {beamtea_color:c(purple), beamtea_color:c(hotpink)}),
+      gradient => maps:get(gradient, Opts, {?GRAD_FROM, ?GRAD_TO}),
       empty_color => maps:get(empty_color, Opts, beamtea_color:c(dim)),
       show_percent => maps:get(show_percent, Opts, true)}.
 
@@ -70,13 +76,20 @@ view(#{percent := P, width := W, full := Full, empty := Empty,
 
 %%% --- helpers ----------------------------------------------------------
 
-%% Interpolate a colour across the bar so the fill fades from `From' to `To'.
+%% Interpolate a truecolor across the bar so the fill fades from `From' to `To'.
+%% Interpolation is linear in RGB space between the two endpoints — this is what
+%% gives a smooth purple->pink ramp (unlike walking xterm-256 index numbers,
+%% which passes through unrelated hues).
 gradient_cell(Glyph, I, W, From, To) when W > 1 ->
     T = (I - 1) / (W - 1),
-    Color = round(From + (To - From) * T),
-    beamtea_term:paint([38, 5, Color], Glyph);
+    beamtea_term:paint_rgb(lerp_rgb(From, To, T), Glyph);
 gradient_cell(Glyph, _I, _W, From, _To) ->
-    beamtea_term:paint([38, 5, From], Glyph).
+    beamtea_term:paint_rgb(From, Glyph).
+
+lerp_rgb({R1, G1, B1}, {R2, G2, B2}, T) ->
+    {lerp(R1, R2, T), lerp(G1, G2, T), lerp(B1, B2, T)}.
+
+lerp(A, B, T) -> round(A + (B - A) * T).
 
 pct_label(P) ->
     Whole = round(P * 100),

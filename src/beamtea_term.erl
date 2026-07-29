@@ -10,8 +10,9 @@
          clear/0, clear_line/0, clear_below/0,
          home/0, move/2,
          reset/0, sgr/1,
-         fg/1, bg/1,
-         bold/1, faint/1, italic/1, underline/1, reverse/1, paint/2]).
+         fg/1, bg/1, fg_rgb/3, bg_rgb/3, paint_rgb/2,
+         bold/1, faint/1, italic/1, underline/1, reverse/1, paint/2,
+         rule/1, rule/2]).
 
 %%% ===================================================================
 %%% Screen / cursor control
@@ -74,6 +75,18 @@ fg(N) -> sgr([38, 5, N]).
 -spec bg(0..255) -> iodata().
 bg(N) -> sgr([48, 5, N]).
 
+%% @doc 24-bit truecolor foreground.
+-spec fg_rgb(0..255, 0..255, 0..255) -> iodata().
+fg_rgb(R, G, B) -> sgr([38, 2, R, G, B]).
+
+%% @doc 24-bit truecolor background.
+-spec bg_rgb(0..255, 0..255, 0..255) -> iodata().
+bg_rgb(R, G, B) -> sgr([48, 2, R, G, B]).
+
+%% @doc Paint `Text' in a truecolor `{R, G, B}' foreground and reset.
+-spec paint_rgb({0..255, 0..255, 0..255}, iodata()) -> iodata().
+paint_rgb({R, G, B}, Text) -> paint([38, 2, R, G, B], Text).
+
 -spec bold(iodata()) -> iodata().
 bold(Text) -> paint([1], Text).
 
@@ -92,3 +105,11 @@ reverse(Text) -> paint([7], Text).
 %% @doc Wrap `Text' in the given SGR codes and reset afterwards.
 -spec paint([non_neg_integer()], iodata()) -> iodata().
 paint(Codes, Text) -> [sgr(Codes), Text, reset()].
+
+%% @equiv rule(Width, <<"─"/utf8>>)
+-spec rule(non_neg_integer()) -> iodata().
+rule(Width) -> rule(Width, <<"─"/utf8>>).
+
+%% @doc A horizontal rule: `Glyph' repeated to `Width' columns.
+-spec rule(non_neg_integer(), binary()) -> iodata().
+rule(Width, Glyph) -> lists:duplicate(Width, Glyph).
