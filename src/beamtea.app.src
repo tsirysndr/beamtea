@@ -1,0 +1,13 @@
+{application, beamtea, [
+    {description, "A delightful terminal UI framework for the BEAM (Elm architecture, built on prim_tty)"},
+    {vsn, "0.1.0"},
+    {registered, [beamtea_runtime]},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["MIT"]},
+    {links, []}
+]}.

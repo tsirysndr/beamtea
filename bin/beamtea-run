@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+#
+# beamtea-run — launch a beamtea program with the terminal set up the way a
+# full-screen TUI needs.
+#
+#   Usage: bin/beamtea-run <module>
+#   e.g.   bin/beamtea-run counter
+#
+# Why a launcher (and not just `rebar3 shell`)?
+#
+#   * `+Bi`               disables the BEAM break handler, so Ctrl-C is not
+#                         swallowed by the "BREAK: (a)bort ..." menu.
+#   * `-noshell -noinput` makes beamtea the sole owner of the terminal (fd 0),
+#                         avoiding the interactive shell's `user_drv' fighting
+#                         prim_tty for input (the "stealing control of fd=0"
+#                         warning).
+#   * `stty -isig -ixon`  delivers Ctrl-C/Ctrl-S to the program as ordinary
+#                         bytes instead of signals; prim_tty preserves this, so
+#                         the runtime can turn Ctrl-C into a clean quit.
+#
+# The original terminal settings are always restored on exit.
+set -euo pipefail
+
+MODULE="${1:-}"
+if [ -z "$MODULE" ]; then
+    echo "usage: $(basename "$0") <module>   (e.g. counter, spinner_demo, table_demo)" >&2
+    exit 2
+fi
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+# Build the library + examples (quietly) so the beams are on disk.
+rebar3 as examples compile >/dev/null
+
+EBIN="_build/examples/lib/beamtea/ebin"
+EXAMPLES="_build/examples/lib/beamtea/examples"
+
+if [ ! -f "$EXAMPLES/${MODULE}.beam" ] && [ ! -f "$EBIN/${MODULE}.beam" ]; then
+    echo "error: module '${MODULE}' not found. Available examples:" >&2
+    ls "$EXAMPLES"/*.beam 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.beam$//;s/^/  - /' >&2
+    exit 1
+fi
+
+# Save and restore the terminal state no matter how we exit.
+SAVED_STTY="$(stty -g 2>/dev/null || true)"
+restore() { [ -n "$SAVED_STTY" ] && stty "$SAVED_STTY" 2>/dev/null || true; }
+trap restore EXIT INT TERM
+
+# Ctrl-C / Ctrl-S as bytes, not signals.
+stty -isig -ixon 2>/dev/null || true
+
+exec erl +Bi -noshell -noinput \
+    -pa "$EBIN" -pa "$EXAMPLES" \
+    -eval "${MODULE}:main(), halt()."

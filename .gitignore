@@ -1,0 +1,39 @@
+# rebar3 / build artifacts
+.rebar3
+.rebar
+_build
+_checkouts
+_vendor
+ebin
+*.beam
+*.o
+*.plt
+*.plt.hash
+
+# EUnit / Common Test
+.eunit
+log
+logs
+*.coverdata
+
+# Crash dumps
+erl_crash.dump
+rebar3.crashdump
+
+# Erlang runtime
+.erlang.cookie
+
+# Editors
+*.swp
+*.swo
+*~
+.idea
+*.iml
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated docs
+/doc
