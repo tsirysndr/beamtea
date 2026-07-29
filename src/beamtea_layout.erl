@@ -11,7 +11,8 @@
 %%% size via the `{resize, {Cols, Rows}}' message.
 -module(beamtea_layout).
 
--export([place/3, center/2, top_center/2, frame/3]).
+-export([place/3, center/2, top_center/2, frame/3,
+         overlay/4, overlay_center/3]).
 
 -export_type([halign/0, valign/0]).
 
@@ -71,6 +72,83 @@ frame(Content, {Cols, Rows}, Opts) when Cols >= 4, Rows >= 3 ->
     lists:join(<<"\n">>, [Top | Body] ++ [Bottom]);
 frame(Content, _Size, _Opts) ->
     Content.
+
+%% @doc Composite `Fg' on top of `Bg' at `{Col, Row}' (0-based) within a
+%% `{Cols, Rows}' area — the basis for a floating modal/popover. Both may be
+%% fully styled (ANSI is handled when slicing the background by column); `Bg'
+%% is padded to the full area first.
+-spec overlay(iodata(), iodata(), {non_neg_integer(), non_neg_integer()},
+              {pos_integer(), pos_integer()}) -> iodata().
+overlay(Bg, Fg, {Col, Row}, {Cols, Rows}) ->
+    BgLines = normalize_bg(beamtea_render:lines(Bg), Cols, Rows),
+    FgLines = beamtea_render:lines(Fg),
+    FgW = lists:max([0 | [beamtea_util:visible_width(L) || L <- FgLines]]),
+    FgH = length(FgLines),
+    Composited =
+        [compose_row(I, BgLines, FgLines, FgW, FgH, Col, Row)
+         || I <- lists:seq(0, Rows - 1)],
+    lists:join(<<"\n">>, Composited).
+
+%% @doc Centre `Fg' over `Bg' within `{Cols, Rows}'.
+-spec overlay_center(iodata(), iodata(), {pos_integer(), pos_integer()}) -> iodata().
+overlay_center(Bg, Fg, {Cols, Rows}) ->
+    FgLines = beamtea_render:lines(Fg),
+    FgW = lists:max([0 | [beamtea_util:visible_width(L) || L <- FgLines]]),
+    FgH = length(FgLines),
+    Col = max(0, (Cols - FgW) div 2),
+    Row = max(0, (Rows - FgH) div 2),
+    overlay(Bg, Fg, {Col, Row}, {Cols, Rows}).
+
+compose_row(I, BgLines, FgLines, FgW, FgH, Col, Row)
+  when I >= Row, I < Row + FgH ->
+    Bg = lists:nth(I + 1, BgLines),
+    Fg = beamtea_util:pad_visible(lists:nth(I - Row + 1, FgLines), FgW),
+    [ansi_take(Bg, Col), Fg, ansi_drop(Bg, Col + FgW)];
+compose_row(I, BgLines, _FgLines, _FgW, _FgH, _Col, _Row) ->
+    lists:nth(I + 1, BgLines).
+
+%% Pad the background to exactly Rows lines of Cols visible columns.
+normalize_bg(Lines, Cols, Rows) ->
+    Fitted = [beamtea_util:pad_visible(L, Cols) || L <- Lines],
+    case length(Fitted) of
+        N when N >= Rows -> lists:sublist(Fitted, Rows);
+        N -> Fitted ++ lists:duplicate(Rows - N, spaces(Cols))
+    end.
+
+%% Take the first `N' visible columns, keeping ANSI escapes; reset at the end.
+ansi_take(Line, N) ->
+    take_cols(iolist_to_binary(Line), N, <<>>).
+
+take_cols(<<>>, _N, Acc) -> Acc;
+take_cols(_B, 0, Acc) -> <<Acc/binary, "\e[0m">>;
+take_cols(<<16#1B, $[, R/binary>>, N, Acc) ->
+    {Seq, R1} = grab_csi(R),
+    take_cols(R1, N, <<Acc/binary, 16#1B, $[, Seq/binary>>);
+take_cols(<<C/utf8, R/binary>>, N, Acc) when N > 0 ->
+    take_cols(R, N - 1, <<Acc/binary, C/utf8>>);
+take_cols(<<_, R/binary>>, N, Acc) ->
+    take_cols(R, N, Acc).
+
+%% Drop the first `N' visible columns, replaying the ANSI state seen so far so
+%% the remainder keeps its colours.
+ansi_drop(Line, N) ->
+    drop_cols(iolist_to_binary(Line), N, <<>>).
+
+drop_cols(<<>>, _N, _State) -> <<>>;
+drop_cols(B, 0, State) -> <<State/binary, B/binary>>;
+drop_cols(<<16#1B, $[, R/binary>>, N, State) ->
+    {Seq, R1} = grab_csi(R),
+    drop_cols(R1, N, <<State/binary, 16#1B, $[, Seq/binary>>);
+drop_cols(<<_C/utf8, R/binary>>, N, State) when N > 0 ->
+    drop_cols(R, N - 1, State);
+drop_cols(<<_, R/binary>>, N, State) ->
+    drop_cols(R, N, State).
+
+%% Read a CSI body up to and including its final byte (0x40..0x7E).
+grab_csi(B) -> grab_csi(B, <<>>).
+grab_csi(<<C, R/binary>>, Acc) when C >= 16#40, C =< 16#7E -> {<<Acc/binary, C>>, R};
+grab_csi(<<C, R/binary>>, Acc) -> grab_csi(R, <<Acc/binary, C>>);
+grab_csi(<<>>, Acc) -> {Acc, <<>>}.
 
 %%% --- helpers ----------------------------------------------------------
 

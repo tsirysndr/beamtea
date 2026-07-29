@@ -1,6 +1,6 @@
 {application, beamtea, [
     {description, "A delightful terminal UI framework for the BEAM - Bubble Tea for Erlang. The Elm Architecture on prim_tty, with reusable bubbles (spinner, textinput, table, and more)."},
-    {vsn, "0.1.1"},
+    {vsn, "0.1.2"},
     {registered, [beamtea_runtime]},
     {applications, [
         kernel,

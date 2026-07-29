@@ -34,9 +34,19 @@ lines(View) ->
 to_binary(View) ->
     case unicode:characters_to_binary(View) of
         Bin when is_binary(Bin) -> Bin;
-        {error, Encoded, _Rest} -> Encoded;
-        {incomplete, Encoded, _Rest} -> Encoded
+        {incomplete, Encoded, _Rest} -> Encoded;
+        {error, Encoded, Rest} ->
+            %% Invalid byte (e.g. a non-`/utf8' literal): skip just that unit
+            %% and keep going, so one bad byte can't truncate the whole frame.
+            <<Encoded/binary, (to_binary(skip_one(Rest)))/binary>>
     end.
+
+skip_one(<<_, T/binary>>) -> T;
+skip_one([H | T]) when is_integer(H) -> T;
+skip_one([H | T]) when is_binary(H) -> [skip_one(H) | T];
+skip_one([H | T]) when is_list(H) -> [skip_one(H) | T];
+skip_one([[] | T]) -> skip_one(T);
+skip_one(_) -> <<>>.
 
 render_lines([]) ->
     [];

@@ -2,7 +2,7 @@
 -module(beamtea_util).
 
 -export([format_clock/1, format_stopwatch/1, truncate/2, pad_right/2,
-         strip_ansi/1, visible_width/1, pad_visible/2]).
+         strip_ansi/1, visible_width/1, char_width/1, pad_visible/2]).
 
 %% @doc Format milliseconds as `MM:SS' (or `HH:MM:SS' past an hour).
 -spec format_clock(integer()) -> iodata().
@@ -27,17 +27,28 @@ format_stopwatch(Ms) ->
     Cs = (Ms rem 1000) div 10,
     io_lib:format("~2..0B:~2..0B.~2..0B", [M, S, Cs]).
 
-%% @doc Truncate an iodata string to at most `Max' code points, adding an
-%% ellipsis when cut.
+%% @doc Truncate an iodata string to at most `Max' *display columns*, adding an
+%% ellipsis when cut. Wide characters count as 2, so the result never exceeds
+%% `Max' columns even when it splits around emoji/CJK.
 -spec truncate(iodata(), non_neg_integer()) -> binary().
 truncate(IoData, Max) ->
     Chars = unicode:characters_to_list(iolist_to_binary(IoData)),
-    case length(Chars) =< Max of
+    case visible_width(unicode:characters_to_binary(Chars)) =< Max of
         true -> unicode:characters_to_binary(Chars);
         false when Max =< 1 ->
-            unicode:characters_to_binary(lists:sublist(Chars, Max));
+            unicode:characters_to_binary(take_width(Chars, Max));
         false ->
-            unicode:characters_to_binary(lists:sublist(Chars, Max - 1) ++ [$…])
+            unicode:characters_to_binary(take_width(Chars, Max - 1) ++ [$…])
+    end.
+
+%% Take a prefix of code points that fits within `Max' display columns.
+take_width(Chars, Max) -> take_width(Chars, Max, 0, []).
+take_width([], _Max, _W, Acc) -> lists:reverse(Acc);
+take_width([C | Rest], Max, W, Acc) ->
+    W1 = W + char_width(C),
+    case W1 > Max of
+        true -> lists:reverse(Acc);
+        false -> take_width(Rest, Max, W1, [C | Acc])
     end.
 
 %% @doc Right-pad an iodata string with spaces to `Width' code points (never
@@ -72,11 +83,21 @@ skip_to_final(<<C, Rest/binary>>) when C >= 16#40, C =< 16#7E -> Rest;
 skip_to_final(<<_, Rest/binary>>) -> skip_to_final(Rest);
 skip_to_final(<<>>) -> <<>>.
 
-%% @doc The number of visible columns in a string, ignoring ANSI escapes.
-%% (Counts code points; wide characters are treated as width 1.)
+%% @doc The number of *display columns* a string occupies, ignoring ANSI
+%% escapes. Uses a `wcwidth' (via `prim_tty:npwcwidth/1'), so wide characters
+%% (emoji, CJK) count as 2 and combining marks as 0 — this is what keeps
+%% borders and padding aligned around wide glyphs.
 -spec visible_width(unicode:chardata()) -> non_neg_integer().
 visible_width(IoData) ->
-    length(unicode:characters_to_list(strip_ansi(IoData))).
+    lists:sum([char_width(C) || C <- unicode:characters_to_list(strip_ansi(IoData))]).
+
+%% @doc The display width of a single code point (0, 1 or 2).
+-spec char_width(char()) -> 0..2.
+char_width(C) ->
+    case prim_tty:npwcwidth(C) of
+        W when is_integer(W), W > 0 -> W;
+        _ -> 0   %% -1 (non-printable) / 0 (combining) -> occupies no column
+    end.
 
 %% @doc Right-pad to `Width' *visible* columns, ignoring ANSI escapes in the
 %% width calculation (so coloured text lines up correctly).
