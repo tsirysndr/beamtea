@@ -43,6 +43,53 @@ ctrl_a_test() ->
 ctrl_z_test() ->
     ?assertEqual([{ctrl, $z}], keys(<<26>>)).
 
+%% C0 bytes 28..31 are the traditional Ctrl-\, Ctrl-], Ctrl-^, Ctrl-_ positions.
+%% Ctrl-_ shares the physical key with Ctrl-- on US layouts, so we name it $-
+%% to match what fixterms CSI-u terminals report for Ctrl--.
+c0_symbols_test() ->
+    ?assertEqual([{ctrl, $\\}], keys(<<28>>)),
+    ?assertEqual([{ctrl, $]}], keys(<<29>>)),
+    ?assertEqual([{ctrl, $^}], keys(<<30>>)),
+    ?assertEqual([{ctrl, $-}], keys(<<31>>)).
+
+%%% --- Fixterms CSI-u (ESC [ <codepoint> ; <mods> u) ---------------------
+
+csi_u_ctrl_printable_test() ->
+    %% Modifier value 5 = 1 + ctrl. Ghostty sends these in legacy mode.
+    ?assertEqual([{ctrl, $[}], keys(<<"\e[91;5u">>)),
+    ?assertEqual([{ctrl, $]}], keys(<<"\e[93;5u">>)),
+    ?assertEqual([{ctrl, $-}], keys(<<"\e[45;5u">>)),
+    ?assertEqual([{ctrl, $=}], keys(<<"\e[61;5u">>)),
+    ?assertEqual([{ctrl, $;}], keys(<<"\e[59;5u">>)),
+    ?assertEqual([{ctrl, $c}], keys(<<"\e[99;5u">>)).
+
+csi_u_plain_char_test() ->
+    ?assertEqual([{char, $a}], keys(<<"\e[97u">>)),
+    ?assertEqual([{char, $a}], keys(<<"\e[97;1u">>)).
+
+csi_u_esc_test() ->
+    ?assertEqual([esc], keys(<<"\e[27u">>)),
+    ?assertEqual([esc], keys(<<"\e[27;1u">>)).
+
+csi_u_other_modifiers_skipped_test() ->
+    %% Shift (2), alt (3), ctrl+shift (7), ctrl+alt (6): skip, do not misread.
+    ?assertEqual([], keys(<<"\e[91;2u">>)),
+    ?assertEqual([], keys(<<"\e[91;3u">>)),
+    ?assertEqual([], keys(<<"\e[91;7u">>)),
+    ?assertEqual([], keys(<<"\e[97;6u">>)),
+    %% Kitty event-type parameter (cp;mods;event): skip too.
+    ?assertEqual([], keys(<<"\e[97;1;2u">>)).
+
+csi_u_non_printable_skipped_test() ->
+    ?assertEqual([], keys(<<"\e[9;5u">>)),
+    ?assertEqual([], keys(<<"\e[13;5u">>)),
+    ?assertEqual([], keys(<<"\e[27;5u">>)),
+    ?assertEqual([], keys(<<"\e[57441u">>)).
+
+incomplete_csi_u_leftover_test() ->
+    ?assertEqual({[], <<"\e[91;5">>}, beamtea_key:parse(<<"\e[91;5">>)),
+    {[{ctrl, $[}], <<>>} = beamtea_key:parse(<<"\e[91;5", "u">>).
+
 %%% --- Arrow keys (CSI + SS3) ------------------------------------------
 
 csi_arrows_test() ->
