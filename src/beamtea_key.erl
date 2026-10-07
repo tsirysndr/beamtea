@@ -13,7 +13,10 @@
 %%%       `enter', `esc', `tab', `back_tab', `backspace', `delete', `insert',
 %%%       `home', `'end'', `page_up', `page_down'</li>
 %%%   <li>`{ctrl, Letter}' for Ctrl-combinations, e.g. Ctrl-C is
-%%%       `{ctrl, $c}'</li>
+%%%       `{ctrl, $c}'; also decodes the C0 positions for Ctrl-\, Ctrl-],
+%%%       Ctrl-^ and Ctrl--/Ctrl-_ (byte 31), and fixterms CSI-u sequences
+%%%       (ESC [ <codepoint> ; <mods> u) so Ctrl+printable keys arrive
+%%%       distinctly on terminals that send them (Ghostty, kitty, WezTerm, foot)</li>
 %%%   <li>`{char, CodePoint}' for a printable character (including space); the
 %%%       code point is a full Unicode code point, so UTF-8 text "just
 %%%       works"</li>
@@ -73,6 +76,15 @@ parse(<<8,   Rest/binary>>, Acc) -> parse(Rest, [backspace | Acc]);
 %% Bytes 1..26 are Ctrl-A..Ctrl-Z (0x0d/0x09/0x08 handled above).
 parse(<<C, Rest/binary>>, Acc) when C >= 1, C =< 26 ->
     parse(Rest, [{ctrl, C + $a - 1} | Acc]);
+
+%% The remaining printable Ctrl positions from the classic C0 chart. 28..30
+%% are Ctrl-\, Ctrl-], Ctrl-^. 31 is nominally Ctrl-_ but shares a physical
+%% key with Ctrl-- on US layouts, so it is reported as {ctrl, $-} to match
+%% what fixterms CSI-u terminals report for Ctrl--.
+parse(<<28, Rest/binary>>, Acc) -> parse(Rest, [{ctrl, $\\} | Acc]);
+parse(<<29, Rest/binary>>, Acc) -> parse(Rest, [{ctrl, $]} | Acc]);
+parse(<<30, Rest/binary>>, Acc) -> parse(Rest, [{ctrl, $^} | Acc]);
+parse(<<31, Rest/binary>>, Acc) -> parse(Rest, [{ctrl, $-} | Acc]);
 
 %% Drop any remaining C0 control bytes we do not recognise (incl. NUL).
 parse(<<C, Rest/binary>>, Acc) when C < 32 ->
@@ -138,6 +150,13 @@ interpret_csi(<<>>, $D) -> {ok, left};
 interpret_csi(<<>>, $H) -> {ok, home};
 interpret_csi(<<>>, $F) -> {ok, 'end'};
 interpret_csi(<<>>, $Z) -> {ok, back_tab};
+interpret_csi(<<"27">>, $u) -> {ok, esc};
+interpret_csi(<<"27;1">>, $u) -> {ok, esc};
+%% Fixterms CSI-u (ESC [ <codepoint> [; <mods>] u): a printable code point
+%% alone or with mods 1 is the plain character; with mods 5 (1 + ctrl) it is
+%% Ctrl-<char>. Other modifier combinations and non-printable code points
+%% are skipped rather than misread.
+interpret_csi(Bin, $u) -> interpret_csi_u(Bin);
 interpret_csi(<<"1">>, $~) -> {ok, home};
 interpret_csi(<<"2">>, $~) -> {ok, insert};
 interpret_csi(<<"3">>, $~) -> {ok, delete};
@@ -147,6 +166,32 @@ interpret_csi(<<"6">>, $~) -> {ok, page_down};
 interpret_csi(<<"7">>, $~) -> {ok, home};
 interpret_csi(<<"8">>, $~) -> {ok, 'end'};
 interpret_csi(_, _) -> skip.
+
+interpret_csi_u(Bin) ->
+    {CpBin, ModsBin} =
+        case binary:split(Bin, <<";">>) of
+            [CpSeg]                  -> {CpSeg, <<"1">>};
+            [CpSeg, ModsSeg | _Extra] -> {CpSeg, ModsSeg}
+        end,
+    case parse_uint(CpBin) of
+        %% 16#E000.. is the Unicode Private Use Area, where the kitty
+        %% protocol encodes functional keys — never treat those as text.
+        {ok, Cp} when Cp >= 32, Cp < 16#E000 ->
+            case parse_uint(ModsBin) of
+                {ok, 1} -> {ok, {char, Cp}};
+                {ok, 5} -> {ok, {ctrl, Cp}};
+                _       -> skip
+            end;
+        _ ->
+            skip
+    end.
+
+%% Parse a non-negative integer parameter, or `error' for anything else.
+parse_uint(Bin) ->
+    case string:to_integer(binary_to_list(Bin)) of
+        {Int, []} when Int >= 0 -> {ok, Int};
+        _                       -> error
+    end.
 
 %% SS3 (ESC O) — application-cursor-mode arrows and Home/End.
 interpret_ss3(<<>>, $A) -> {ok, up};
